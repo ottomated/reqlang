@@ -8,7 +8,6 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <optional>
-#include <setw>
 
 using namespace std;
 
@@ -103,19 +102,8 @@ Token Tokenizer::getNextToken() {
     if (c == '"') {
         return parseString();
     }
-    const unordered_set<char> validNameChars = {'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f',
-                                                'g', 'h',
-                                                'j', 'k', 'l', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 'Q', 'W', 'E', 'R',
-                                                'T', 'Y',
-                                                'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z',
-                                                'X', 'C',
-                                                'V', 'B', 'N', 'M', '_'};
-    /*while (validNameChars.find(c) != validNameChars.end()) {
-        parse += c;
-        c = program[i];
-    }*/
-    currentToken = Token();
-    return currentToken;
+
+    return parseName(c);
 }
 
 // Return the next character without incrementing
@@ -150,21 +138,7 @@ Token Tokenizer::parseNumber(char c) {
     return currentToken;
 }
 
-char doBackslash(char c) {
-    switch(c) {
-        case 't': return '\t';
-        case 'n': return '\n';
-        case 'a': return '\a';
-        case 'b': return '\b';
-        case 'r': return '\r';
-        case 'v': return '\v';
-        case 'f': return '\f';
-        case '"': return '"';
-        case '\\': return '\\';
-        default:
-            throw string("Invalid backslash character ") + c;
-    }
-}
+char doBackslash(char c);
 
 Token Tokenizer::parseString() {
     string res;
@@ -183,8 +157,54 @@ Token Tokenizer::parseString() {
             }
         }
         c = next();
-    } while (c != '"');
+    } while (c != '"' || backslash);
     next();
     currentToken = Token(String, res);
     return currentToken;
+}
+
+Token Tokenizer::parseName(char c) {
+    const unordered_set<char> validNameChars =
+            {'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'z', 'x',
+             'c', 'v', 'b', 'n', 'm', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H',
+             'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '_'};
+    string res;
+    // while it's a valid name char
+    while (validNameChars.find(c) != validNameChars.end()) {
+        res += c;
+        c = peek();
+    }
+    if (res.length() == 0)
+        return Token();
+
+    if (res == "true")
+        return Token(Boolean, true);
+    else if (res == "false")
+        return Token(Boolean, false);
+    return Token(Name, res);
+}
+
+char doBackslash(char c) {
+    switch (c) {
+        case 't':
+            return '\t';
+        case 'n':
+            return '\n';
+        case 'a':
+            return '\a';
+        case 'b':
+            return '\b';
+        case 'r':
+            return '\r';
+        case 'v':
+            return '\v';
+        case 'f':
+            return '\f';
+        case '"':
+            return '"';
+        case '\\':
+            return '\\';
+        default:
+            return c;
+    }
 }

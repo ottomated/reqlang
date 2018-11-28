@@ -15,6 +15,7 @@ private:
     int pos{};
     Token parseNumber(char start);
     Token parseString();
+    Token parseName(char start);
 public:
     string program;
     Token currentToken;
