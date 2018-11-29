@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <optional>
+#include <regex>
 
 using namespace std;
 
@@ -121,7 +122,11 @@ Token Tokenizer::getNextToken() {
     }
     // Strings
     if (c == '"') {
-        return parseString();
+        return parseString('"');
+    }
+    // URLs
+    if (c == '`') {
+        return parseURL();
     }
     // Chars
     if (c == '\'') {
@@ -204,13 +209,14 @@ Token Tokenizer::parseNumber(char c) {
 
 char doBackslash(char c);
 
-Token Tokenizer::parseString() {
+Token Tokenizer::parseString(char closing) {
     string res;
     char c;
     optional<char> _;
     _ = next();
     if (!_.has_value()) {
-        throw TokenizerException("Expected closing `\"`, got EOF", line_number, col_number, current_line);
+        throw TokenizerException(string("Expected closing ") + closing + ", got EOF", line_number, col_number,
+                                 current_line);
     }
     c = _.value();
     bool backslash = false;
@@ -228,10 +234,11 @@ Token Tokenizer::parseString() {
         }
         _ = next();
         if (!_.has_value()) {
-            throw TokenizerException("Expected closing `\"`, got EOF", line_number, col_number, current_line);
+            throw TokenizerException(string("Expected closing ") + closing + ", got EOF", line_number, col_number,
+                                     current_line);
         }
         c = _.value();
-    } while (c != '"' || backslash);
+    } while (c != closing || backslash);
     next();
     currentToken = Token(String, res);
     return currentToken;
@@ -311,6 +318,17 @@ Token Tokenizer::parseChar() {
             throw TokenizerException(string("Expected `'`, found ") + _.value(), line_number, col_number, current_line);
         }
         return Token(Char, c);
+    }
+}
+
+Token Tokenizer::parseURL() {
+    string url = get<string>(parseString('`').value);
+    regex url_regex = std::regex(R"(^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$)");
+    if (!regex_match(url, url_regex)) {
+        throw TokenizerException("Malformed URL: " + url, line_number, col_number, current_line);
+    } else {
+        // TODO: Possibly add a Url token?
+        return Token(String, url);
     }
 }
 

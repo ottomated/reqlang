@@ -21,9 +21,11 @@ private:
     string current_line;
 
     Token parseNumber(char start);
-    Token parseString();
+    Token parseString(char closing);
     Token parseName(char start);
     Token parseChar();
+
+    Token parseURL();
 
 public:
     explicit Tokenizer(string p);
