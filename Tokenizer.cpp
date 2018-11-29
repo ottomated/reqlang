@@ -11,12 +11,29 @@
 
 using namespace std;
 
-Tokenizer::Tokenizer(string p) : program(std::move(p)), currentToken(Token(Empty, 0)), pos(0) {}
+Tokenizer::Tokenizer(string p) : program(std::move(p)), currentToken(Token(Empty, 0)), pos(0), line_number(1), col_number(1) {}
 
 Token Tokenizer::getNextToken() {
-    char c = next();
+    char c;
+    optional<char> _;
+    _ = next();
+    if (!_.has_value()) {
+        currentToken = Token(Eof);
+        return currentToken;
+    }
+    c = _.value();
     while (isspace(c)) {
-        c = next();
+        if (c == '\n') {
+            col_number = 1;
+            line_number++;
+            current_line = "";
+        }
+        _ = next();
+        if (!_.has_value()) {
+            currentToken = Token(Eof);
+            return currentToken;
+        }
+        c = _.value();
     }
     if (!c) {
         currentToken = Token(Eof);
@@ -46,8 +63,13 @@ Token Tokenizer::getNextToken() {
     }
 
 
+    _ = peek();
+    if (!_.has_value()) {
+        currentToken = Token(Eof);
+        return currentToken;
+    }
     // Find 2-char tokens that could be confused
-    string nextTwo = string() + c + peek();
+    string nextTwo = string() + c + _.value();
     {
         unordered_map<string, TokenType> doubleChars = {
                 {"++", Increment},
@@ -107,31 +129,58 @@ Token Tokenizer::getNextToken() {
 }
 
 // Return the next character without incrementing
-char Tokenizer::peek() {
-    //cout << "Peek: " << pos + 1 << " " << program[pos + 1] << endl;
+optional<char> Tokenizer::peek() {
+    if (pos >= program.size())
+        return {};
     return program[pos + 1];
 }
 
 // Return the current character and increment
-char Tokenizer::next() {
-    //cout << "Read: " << pos+1 << " " << program[pos] << endl;
-    return program[pos++];
+optional<char> Tokenizer::next() {
+    col_number++;
+    if (pos >= program.size())
+        return {};
+    char c = program[pos++];
+    current_line += c;
+    return c;
+}
+// Return the current character and increment
+void Tokenizer::unnext() {
+    col_number--;
+    pos--;
 }
 
 Token Tokenizer::parseNumber(char c) {
+    optional<char> _;
     double res = 0;
     while (isdigit(c)) {
         res *= 10;
         res += c - '0';
-        c = next();
+
+        _ = next();
+        if (!_.has_value()) {
+            currentToken = Token(Number, res);
+            return currentToken;
+        }
+        c = _.value();
     }
     if (c == '.') {
         double mult = 0.1;
-        c = next();
+        _ = next();
+        if (!_.has_value()) {
+            currentToken = Token(Number, res);
+            return currentToken;
+        }
+        c = _.value();
         while (isdigit(c)) {
             res += (c - '0') * mult;
             mult *= 0.1;
-            c = next();
+            _ = next();
+            if (!_.has_value()) {
+                currentToken = Token(Number, res);
+                return currentToken;
+            }
+            c = _.value();
         }
     }
     currentToken = Token(Number, res);
@@ -142,7 +191,13 @@ char doBackslash(char c);
 
 Token Tokenizer::parseString() {
     string res;
-    char c = next();
+    char c;
+    optional<char> _;
+    _ = next();
+    if (!_.has_value()) {
+        throw TokenizerException("Expected closing `\"`, got EOF", line_number, col_number, current_line);
+    }
+    c = _.value();
     bool backslash = false;
     do {
         if (backslash) {
@@ -156,7 +211,11 @@ Token Tokenizer::parseString() {
                 res += c;
             }
         }
-        c = next();
+        _ = next();
+        if (!_.has_value()) {
+            throw TokenizerException("Expected closing `\"`, got EOF", line_number, col_number, current_line);
+        }
+        c = _.value();
     } while (c != '"' || backslash);
     next();
     currentToken = Token(String, res);
@@ -164,6 +223,7 @@ Token Tokenizer::parseString() {
 }
 
 Token Tokenizer::parseName(char c) {
+    optional<char> _;
     const unordered_set<char> validNameChars =
             {'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'z', 'x',
              'c', 'v', 'b', 'n', 'm', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H',
@@ -172,18 +232,28 @@ Token Tokenizer::parseName(char c) {
     // while it's a valid name char
     while (validNameChars.find(c) != validNameChars.end()) {
         res += c;
-        c = next();
+        _ = next();
+        if (!_.has_value()) {
+            currentToken = Token(Name, res);
+            return currentToken;
+        }
+        c = _.value();
     }
-    pos--;
+    unnext();
 
-    if (res.length() == 0)
-        return Token();
+    if (res.length() == 0) {
+        throw TokenizerException(string("Unexpected character `") + c + "`", line_number, col_number, current_line);
+    }
 
     if (res == "true")
         return Token(Boolean, true);
     else if (res == "false")
         return Token(Boolean, false);
     return Token(Name, res);
+}
+
+Token Tokenizer::parseChar() {
+    return Token();
 }
 
 char doBackslash(char c) {

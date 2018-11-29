@@ -1,6 +1,1 @@
-func main() {
-    bool myBool = true;
-    if (myBool) {
-        print("string \t \"lol\"\n\n");
-    }
-}
+int boo#lean
