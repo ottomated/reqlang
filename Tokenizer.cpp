@@ -11,7 +11,8 @@
 
 using namespace std;
 
-Tokenizer::Tokenizer(string p) : program(std::move(p)), currentToken(Token(Empty, 0)), pos(0), line_number(1), col_number(1) {}
+Tokenizer::Tokenizer(string p) : program(std::move(p)), currentToken(Token(Empty, 0)), pos(0), line_number(1),
+                                 col_number(0) {}
 
 Token Tokenizer::getNextToken() {
     char c;
@@ -24,7 +25,7 @@ Token Tokenizer::getNextToken() {
     c = _.value();
     while (isspace(c)) {
         if (c == '\n') {
-            col_number = 1;
+            col_number = 0;
             line_number++;
             current_line = "";
         }
@@ -124,6 +125,10 @@ Token Tokenizer::getNextToken() {
     if (c == '"') {
         return parseString();
     }
+    // Chars
+    if (c == '\'') {
+        return parseChar();
+    }
 
     return parseName(c);
 }
@@ -144,6 +149,7 @@ optional<char> Tokenizer::next() {
     current_line += c;
     return c;
 }
+
 // Return the current character and increment
 void Tokenizer::unnext() {
     col_number--;
@@ -253,7 +259,37 @@ Token Tokenizer::parseName(char c) {
 }
 
 Token Tokenizer::parseChar() {
-    return Token();
+    optional<char> _ = next();
+    if (!_.has_value()) {
+        throw TokenizerException("Expected char constant, found EOF", line_number, col_number, current_line);
+    }
+    char c = _.value();
+    if (c == '\\') {
+        // Get char after backslash
+        _ = next();
+        if (!_.has_value()) {
+            throw TokenizerException("Expected char constant, found EOF", line_number, col_number, current_line);
+        }
+        char nextC = _.value();
+        // Ensure it ends with a '
+        _ = next();
+        if (!_.has_value()) {
+            throw TokenizerException("Expected `'`, found EOF", line_number, col_number, current_line);
+        }
+        if (_.value() != '\'') {
+            throw TokenizerException(string("Expected `'`, found ") + _.value(), line_number, col_number, current_line);
+        }
+        return Token(Char, doBackslash(nextC));
+    } else{
+        _ = next();
+        if (!_.has_value()) {
+            throw TokenizerException("Expected `'`, found EOF", line_number, col_number, current_line);
+        }
+        if (_.value() != '\'') {
+            throw TokenizerException(string("Expected `'`, found ") + _.value(), line_number, col_number, current_line);
+        }
+        return Token(Char, c);
+    }
 }
 
 char doBackslash(char c) {
@@ -276,6 +312,8 @@ char doBackslash(char c) {
             return '"';
         case '\\':
             return '\\';
+        case '\'':
+            return '\'';
         default:
             return c;
     }

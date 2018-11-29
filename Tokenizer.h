@@ -54,7 +54,6 @@ public:
            << string(col_number, ' ') << "^~~~" << endl
            << "  at line " << line_number << " col " << col_number;
         static_cast<std::runtime_error &>(*this) = std::runtime_error(ss.str());
-
     }
 };
 
