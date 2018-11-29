@@ -264,6 +264,19 @@ Token Tokenizer::parseName(char c) {
         return Token(Boolean, true);
     else if (res == "false")
         return Token(Boolean, false);
+    else {
+        if (res.compare(0, 2, "M_") == 0) {
+            currentToken = Token(Method, res.substr(2));
+            return currentToken;
+        }
+        const unordered_set<string> defaultMethods =
+                {"GET", "POST", "PUT", "HEAD", "OPTIONS", "DELETE", "TRACE", "CONNECT"};
+        auto it = defaultMethods.find(res);
+        if (it != defaultMethods.end()) {
+            currentToken = Token(Method, res);
+            return currentToken;
+        }
+    }
     return Token(Name, res);
 }
 
@@ -289,7 +302,7 @@ Token Tokenizer::parseChar() {
             throw TokenizerException(string("Expected `'`, found ") + _.value(), line_number, col_number, current_line);
         }
         return Token(Char, doBackslash(nextC));
-    } else{
+    } else {
         _ = next();
         if (!_.has_value()) {
             throw TokenizerException("Expected `'`, found EOF", line_number, col_number, current_line);
