@@ -17,18 +17,16 @@ Tokenizer::Tokenizer(string p) : program(std::move(p)), currentToken(Token(Empty
 Token Tokenizer::getNextToken() {
     char c;
     optional<char> _;
+    // Get next char of program
     _ = next();
     if (!_.has_value()) {
         currentToken = Token(Eof);
         return currentToken;
     }
     c = _.value();
+
+    // Ignore whitespace
     while (isspace(c)) {
-        if (c == '\n') {
-            col_number = 0;
-            line_number++;
-            current_line = "";
-        }
         _ = next();
         if (!_.has_value()) {
             currentToken = Token(Eof);
@@ -135,18 +133,29 @@ Token Tokenizer::getNextToken() {
 
 // Return the next character without incrementing
 optional<char> Tokenizer::peek() {
-    if (pos >= program.size())
+    return peek(1);
+}
+
+// Return the Nth next character without incrementing
+optional<char> Tokenizer::peek(int n) {
+    if (pos + n >= program.size())
         return {};
-    return program[pos + 1];
+    return program[pos + n];
 }
 
 // Return the current character and increment
 optional<char> Tokenizer::next() {
-    col_number++;
     if (pos >= program.size())
         return {};
+    col_number++;
     char c = program[pos++];
     current_line += c;
+
+    if (c == '\n') {
+        col_number = 0;
+        line_number++;
+        current_line = "";
+    }
     return c;
 }
 

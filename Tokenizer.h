@@ -21,11 +21,8 @@ private:
     string current_line;
 
     Token parseNumber(char start);
-
     Token parseString();
-
     Token parseName(char start);
-
     Token parseChar();
 
 public:
@@ -37,6 +34,7 @@ public:
     Token getNextToken();
 
     optional<char> peek();
+    optional<char> peek(int n);
 
     optional<char> next();
 
@@ -49,9 +47,10 @@ public:
     TokenizerException(const string &message, int line_number, int col_number, const string &line) :
             runtime_error("") {
         stringstream ss;
-        ss << message << endl
-           << line << endl
-           << string(col_number, ' ') << "^~~~" << endl
+        cout << line << endl;
+        ss << message << '\n'
+           << line << '\n'
+           << string(col_number, ' ') << "^~~~" << '\n'
            << "  at line " << line_number << " col " << col_number;
         static_cast<std::runtime_error &>(*this) = std::runtime_error(ss.str());
     }
