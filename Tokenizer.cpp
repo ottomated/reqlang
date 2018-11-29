@@ -172,8 +172,10 @@ Token Tokenizer::parseName(char c) {
     // while it's a valid name char
     while (validNameChars.find(c) != validNameChars.end()) {
         res += c;
-        c = peek();
+        c = next();
     }
+    pos--;
+
     if (res.length() == 0)
         return Token();
 
