@@ -31,6 +31,7 @@ int main(int argc, char *argv[]) {
     while (getline(file, line)) {
         program += line + "\n";
     }
+    program.pop_back();
 
     if (verbose) cout << "[TOK] Starting" << endl;
 

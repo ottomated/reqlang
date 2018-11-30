@@ -17,6 +17,7 @@ Tokenizer::Tokenizer(string p) : program(std::move(p)), currentToken(Token(Empty
                                  col_number(0) {}
 
 Token Tokenizer::getNextToken() {
+
     if (parsingRaw)
         return getNextRawToken();
     char c;
@@ -28,7 +29,6 @@ Token Tokenizer::getNextToken() {
         return currentToken;
     }
     c = _.value();
-
     // Ignore whitespace
     while (isspace(c)) {
         _ = next();
@@ -73,7 +73,9 @@ Token Tokenizer::getNextToken() {
     string nextTwo = string() + c + _.value();
     if (nextTwo == "[[") {
         next(1);
-        currentToken = Token(RawOpener, "");
+        parsingRaw = true;
+        raw_name = "";
+        currentToken = Token(RawOpener, string());
         return currentToken;
     }
     {
@@ -313,6 +315,7 @@ Token Tokenizer::parseName(char c) {
     if (_.value() == '[' && _1.value() == '[') {
         next(2);
         parsingRaw = true;
+        raw_name = res;
         return Token(RawOpener, res);
     }
     return Token(Name, res);
@@ -364,11 +367,42 @@ Token Tokenizer::parseURL() {
 }
 
 Token Tokenizer::getNextRawToken() {
-    return Token();
-}
+    char c;
+    optional<char> _;
+    // Get next char of program
+    _ = next();
+    if (!_.has_value()) {
+        throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number, current_line);
+    }
+    c = _.value();
 
-Token Tokenizer::parseRaw(string name) {
-    return Token(RawOpener, name);
+    if (c == ']') {
+        _ = peek();
+        if (!_.has_value()) {
+            throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number, current_line);
+        } else if (_.value() == ']') {
+            int i;
+            bool matches = true;
+            for (i = 0; i < raw_name.length(); i++) {
+                _ = peek(1 + i);
+                if (!_.has_value()) {
+                    throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number,
+                                             current_line);
+                }
+                if (_.value() != raw_name[i]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                next(1 + i);
+                parsingRaw = false;
+                return Token(RawCloser, raw_name);
+            }
+        }
+
+    }
+    return Token(Char, c);
 }
 
 char doBackslash(char c) {

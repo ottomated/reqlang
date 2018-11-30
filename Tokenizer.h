@@ -20,6 +20,7 @@ private:
     int col_number;
     string current_line;
     bool parsingRaw;
+    string raw_name;
 
     Token parseNumber(char start);
     Token parseString(char closing);
