@@ -19,8 +19,8 @@ private:
     int line_number;
     int col_number;
     string current_line;
-    bool parsingRaw;
-    string raw_name;
+    bool parsingHeaderBlock;
+    string header_block_name;
 
     Token parseNumber(char start);
     Token parseString(char closing);
@@ -38,7 +38,7 @@ public:
     Token currentToken;
 
     Token getNextToken();
-    Token getNextRawToken();
+    Token getNextHeaderToken();
 
     optional<char> peek();
     optional<char> peek(int n);

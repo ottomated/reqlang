@@ -26,9 +26,9 @@ std::ostream &operator<<(std::ostream &stream, const Token &token) {
         token.type == Char || token.type == Name || token.type == Method || token.type == HeaderKey ||
         token.type == HeaderValue)
         return stream << "Token " << token.type << "=" << token.value;
-    else if (token.type == RawOpener)
+    else if (token.type == HeaderOpener)
         return stream << "Token " << token.value << token.type;
-    else if (token.type == RawCloser)
+    else if (token.type == HeaderCloser)
         return stream << "Token " << token.type << token.value;
     else
         return stream << "Token " << token.type;

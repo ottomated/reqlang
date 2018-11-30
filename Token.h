@@ -23,7 +23,7 @@ enum TokenType {
     And, Or, BinaryAnd, BinaryOr, Not, BinaryXor,
     Number, Boolean, String, Char,
     Method,
-    RawOpener, RawCloser, HeaderKey, HeaderValue,
+    HeaderOpener, HeaderCloser, HeaderKey, HeaderValue,
     Name, Empty
 };
 static const char *TokenNames[] =

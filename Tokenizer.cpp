@@ -24,8 +24,8 @@ bool isValidHeaderValueChar(char c);
 
 Token Tokenizer::getNextToken() {
 
-    if (parsingRaw) {
-        currentToken = getNextRawToken();
+    if (parsingHeaderBlock) {
+        currentToken = getNextHeaderToken();
         return currentToken;
     }
     char c;
@@ -81,9 +81,9 @@ Token Tokenizer::getNextToken() {
     string nextTwo = string() + c + _.value();
     if (nextTwo == "[[") {
         next(1);
-        parsingRaw = true;
-        raw_name = "";
-        currentToken = Token(RawOpener, string());
+        parsingHeaderBlock = true;
+        header_block_name = "";
+        currentToken = Token(HeaderOpener, string());
         return currentToken;
     }
     {
@@ -312,9 +312,9 @@ Token Tokenizer::parseName(char c) {
 
     if (_.value() == '[' && _1.value() == '[') {
         next(2);
-        parsingRaw = true;
-        raw_name = res;
-        return Token(RawOpener, res);
+        parsingHeaderBlock = true;
+        header_block_name = res;
+        return Token(HeaderOpener, res);
     }
     return Token(Name, res);
 }
@@ -364,13 +364,13 @@ Token Tokenizer::parseURL() {
     }
 }
 
-Token Tokenizer::getNextRawToken() {
+Token Tokenizer::getNextHeaderToken() {
     char c;
     optional<char> _;
     // Get next char of program
     _ = next();
     if (!_.has_value()) {
-        throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number, current_line);
+        throw TokenizerException("Unexpected EOF while parsing HeaderBlock", line_number, col_number, current_line);
     }
     c = _.value();
 
@@ -378,7 +378,7 @@ Token Tokenizer::getNextRawToken() {
     while (isspace(c)) {
         _ = next();
         if (!_.has_value()) {
-            throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number, current_line);
+            throw TokenizerException("Unexpected EOF while parsing HeaderBlock", line_number, col_number, current_line);
         }
         c = _.value();
     }
@@ -386,32 +386,32 @@ Token Tokenizer::getNextRawToken() {
     if (c == ']') {
         _ = peek();
         if (!_.has_value()) {
-            throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number, current_line);
+            throw TokenizerException("Unexpected EOF while parsing HeaderBlock", line_number, col_number, current_line);
         } else if (_.value() == ']') {
             int i;
             bool matches = true;
-            for (i = 0; i < raw_name.length(); i++) {
+            for (i = 0; i < header_block_name.length(); i++) {
                 _ = peek(1 + i);
                 if (!_.has_value()) {
-                    throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number,
+                    throw TokenizerException("Unexpected EOF while parsing HeaderBlock", line_number, col_number,
                                              current_line);
                 }
-                if (_.value() != raw_name[i]) {
+                if (_.value() != header_block_name[i]) {
                     matches = false;
                     break;
                 }
             }
             if (matches) {
                 next(1 + i);
-                parsingRaw = false;
-                return Token(RawCloser, raw_name);
+                parsingHeaderBlock = false;
+                return Token(HeaderCloser, header_block_name);
             }
         }
     }
     if (c == ':') {
         _ = peek();
         if (!_.has_value())
-            throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number, current_line);
+            throw TokenizerException("Unexpected EOF while parsing HeaderBlock", line_number, col_number, current_line);
         if (_.value() != ':') {
             return Token(Colon);
         } else {
@@ -430,7 +430,7 @@ Token Tokenizer::parseHeaderKey(char c) {
     optional<char> _;
     _ = next();
     if (!_.has_value()) {
-        throw TokenizerException("Unexpected EOF when parsing HeaderKey in Raw", line_number, col_number, current_line);
+        throw TokenizerException("Unexpected EOF when parsing HeaderKey in HeaderBlock", line_number, col_number, current_line);
     }
     c = _.value();
     if (c == ':') {
@@ -461,7 +461,7 @@ Token Tokenizer::parseHeaderKey(char c) {
         }
         _ = next();
         if (!_.has_value()) {
-            throw TokenizerException("Unexpected EOF when parsing HeaderKey in Raw", line_number, col_number,
+            throw TokenizerException("Unexpected EOF when parsing HeaderKey in HeaderBlock", line_number, col_number,
                                      current_line);
         }
         c = _.value();
@@ -475,7 +475,7 @@ Token Tokenizer::parseHeaderValue(char c) {
     optional<char> _;
     _ = next();
     if (!_.has_value()) {
-        throw TokenizerException("Unexpected EOF when parsing HeaderValue in Raw", line_number, col_number,
+        throw TokenizerException("Unexpected EOF when parsing HeaderValue in HeaderBlock", line_number, col_number,
                                  current_line);
     }
     c = _.value();
@@ -507,7 +507,7 @@ Token Tokenizer::parseHeaderValue(char c) {
         }
         _ = next();
         if (!_.has_value()) {
-            throw TokenizerException("Unexpected EOF when parsing HeaderValue in Raw", line_number, col_number,
+            throw TokenizerException("Unexpected EOF when parsing HeaderValue in HeaderBlock", line_number, col_number,
                                      current_line);
         }
         c = _.value();
