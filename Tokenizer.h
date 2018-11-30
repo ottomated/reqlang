@@ -26,6 +26,8 @@ private:
     Token parseString(char closing);
     Token parseName(char start);
     Token parseChar();
+    Token parseHeaderKey(char start);
+    Token parseHeaderValue(char start);
 
     Token parseURL();
 

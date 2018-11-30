@@ -1,4 +1,9 @@
 name[[
-    ]]]]]]]
+
+
+    a: a
+
+
 ]]name
-"String here!"
+
+"string" 1.234 true

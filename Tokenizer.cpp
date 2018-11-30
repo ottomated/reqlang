@@ -16,10 +16,18 @@ using namespace std;
 Tokenizer::Tokenizer(string p) : program(std::move(p)), currentToken(Token(Empty, 0)), pos(0), line_number(1),
                                  col_number(0) {}
 
+char doBackslash(char c);
+
+bool isValidHeaderKeyChar(char c);
+
+bool isValidHeaderValueChar(char c);
+
 Token Tokenizer::getNextToken() {
 
-    if (parsingRaw)
-        return getNextRawToken();
+    if (parsingRaw) {
+        currentToken = getNextRawToken();
+        return currentToken;
+    }
     char c;
     optional<char> _;
     // Get next char of program
@@ -200,8 +208,7 @@ Token Tokenizer::parseNumber(char c) {
 
         _ = next();
         if (!_.has_value()) {
-            currentToken = Token(Number, res);
-            return currentToken;
+            return Token(Number, res);
         }
         c = _.value();
     }
@@ -209,8 +216,7 @@ Token Tokenizer::parseNumber(char c) {
         double mult = 0.1;
         _ = next();
         if (!_.has_value()) {
-            currentToken = Token(Number, res);
-            return currentToken;
+            return Token(Number, res);
         }
         c = _.value();
         while (isdigit(c)) {
@@ -218,17 +224,13 @@ Token Tokenizer::parseNumber(char c) {
             mult *= 0.1;
             _ = next();
             if (!_.has_value()) {
-                currentToken = Token(Number, res);
-                return currentToken;
+                return Token(Number, res);
             }
             c = _.value();
         }
     }
-    currentToken = Token(Number, res);
-    return currentToken;
+    return Token(Number, res);
 }
-
-char doBackslash(char c);
 
 Token Tokenizer::parseString(char closing) {
     string res;
@@ -261,8 +263,7 @@ Token Tokenizer::parseString(char closing) {
         c = _.value();
     } while (c != closing || backslash);
     next();
-    currentToken = Token(String, res);
-    return currentToken;
+    return Token(String, res);
 }
 
 Token Tokenizer::parseName(char c) {
@@ -273,8 +274,7 @@ Token Tokenizer::parseName(char c) {
         res += c;
         _ = next();
         if (!_.has_value()) {
-            currentToken = Token(Name, res);
-            return currentToken;
+            return Token(Name, res);
         }
         c = _.value();
     }
@@ -291,15 +291,13 @@ Token Tokenizer::parseName(char c) {
     else {
         // Http Method parsing
         if (res.compare(0, 2, "M_") == 0) {
-            currentToken = Token(Method, res.substr(2));
-            return currentToken;
+            return Token(Method, res.substr(2));
         }
         const unordered_set<string> defaultMethods =
                 {"GET", "POST", "PUT", "HEAD", "OPTIONS", "DELETE", "TRACE", "CONNECT"};
         auto it = defaultMethods.find(res);
         if (it != defaultMethods.end()) {
-            currentToken = Token(Method, res);
-            return currentToken;
+            return Token(Method, res);
         }
     }
 
@@ -376,6 +374,15 @@ Token Tokenizer::getNextRawToken() {
     }
     c = _.value();
 
+    // Ignore whitespace
+    while (isspace(c)) {
+        _ = next();
+        if (!_.has_value()) {
+            throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number, current_line);
+        }
+        c = _.value();
+    }
+
     if (c == ']') {
         _ = peek();
         if (!_.has_value()) {
@@ -400,9 +407,113 @@ Token Tokenizer::getNextRawToken() {
                 return Token(RawCloser, raw_name);
             }
         }
-
     }
-    return Token(Char, c);
+    if (c == ':') {
+        _ = peek();
+        if (!_.has_value())
+            throw TokenizerException("Unexpected EOF while parsing Raw", line_number, col_number, current_line);
+        if (_.value() != ':') {
+            return Token(Colon);
+        } else {
+            next();
+        }
+    }
+    if (currentToken.type == Colon) {
+        return parseHeaderValue(c);
+    } else {
+        return parseHeaderKey(c);
+    }
+}
+
+Token Tokenizer::parseHeaderKey(char c) {
+    string res = string() + c;
+    optional<char> _;
+    _ = next();
+    if (!_.has_value()) {
+        throw TokenizerException("Unexpected EOF when parsing HeaderKey in Raw", line_number, col_number, current_line);
+    }
+    c = _.value();
+    if (c == ':') {
+        unnext();
+        return Token(HeaderKey, res);
+    }
+    bool backslash = false;
+    do {
+        if (backslash) {
+            backslash = false;
+            char slashed = doBackslash(c);
+            if (!isValidHeaderKeyChar(slashed)) {
+                throw TokenizerException(string("Invalid char \"\\") + c + "\" in HeaderKey", line_number, col_number,
+                                         current_line);
+            }
+            res += slashed;
+        } else {
+            if (!isValidHeaderKeyChar(c)) {
+                throw TokenizerException(string("Invalid char \"") + c + "\" in HeaderKey", line_number, col_number,
+                                         current_line);
+            }
+            if (c == '\\')
+                backslash = true;
+            else {
+                backslash = false;
+                res += c;
+            }
+        }
+        _ = next();
+        if (!_.has_value()) {
+            throw TokenizerException("Unexpected EOF when parsing HeaderKey in Raw", line_number, col_number,
+                                     current_line);
+        }
+        c = _.value();
+    } while (c != ':' || backslash);
+    unnext();
+    return Token(HeaderKey, res);
+}
+
+Token Tokenizer::parseHeaderValue(char c) {
+    string res = string() + c;
+    optional<char> _;
+    _ = next();
+    if (!_.has_value()) {
+        throw TokenizerException("Unexpected EOF when parsing HeaderValue in Raw", line_number, col_number,
+                                 current_line);
+    }
+    c = _.value();
+    if (c == '\n') {
+        unnext();
+        return Token(HeaderValue, res);
+    }
+    bool backslash = false;
+    do {
+        if (backslash) {
+            backslash = false;
+            char slashed = doBackslash(c);
+            if (!isValidHeaderValueChar(slashed)) {
+                throw TokenizerException(string("Invalid char \"\\") + c + "\" in HeaderValue", line_number, col_number,
+                                         current_line);
+            }
+            res += slashed;
+        } else {
+            if (!isValidHeaderValueChar(c)) {
+                throw TokenizerException(string("Invalid char \"") + c + "\" in HeaderValue", line_number, col_number,
+                                         current_line);
+            }
+            if (c == '\\')
+                backslash = true;
+            else {
+                backslash = false;
+                res += c;
+            }
+        }
+        _ = next();
+        if (!_.has_value()) {
+            throw TokenizerException("Unexpected EOF when parsing HeaderValue in Raw", line_number, col_number,
+                                     current_line);
+        }
+        c = _.value();
+    } while (c != '\n' || backslash);
+    unnext();
+    return Token(HeaderValue, res);
 }
 
 char doBackslash(char c) {
@@ -430,4 +541,14 @@ char doBackslash(char c) {
         default:
             return c;
     }
+}
+
+bool isValidHeaderKeyChar(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '!' || c == '#' ||
+           c == '$' || c == '%' || c == '&' || c == '\'' || c == '*' || c == '+' || c == '-' || c == '.' || c == '^' ||
+           c == '_' || c == '`' || c == '|' || c == '~';
+}
+
+bool isValidHeaderValueChar(char c) {
+    return (c >= 0x20 && c <= 0x7E);
 }
