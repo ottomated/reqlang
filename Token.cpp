@@ -25,6 +25,10 @@ std::ostream &operator<<(std::ostream &stream, const Token &token) {
     if (token.type == Number || token.type == String || token.type == Boolean ||
         token.type == Char || token.type == Name || token.type == Method)
         return stream << "Token " << token.type << "=" << token.value;
+    else if (token.type == RawOpener)
+        return stream << "Token " << token.value << token.type;
+    else if (token.type == RawCloser)
+        return stream << "Token " << token.type << token.value;
     else
         return stream << "Token " << token.type;
 

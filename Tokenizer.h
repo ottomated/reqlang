@@ -19,6 +19,7 @@ private:
     int line_number;
     int col_number;
     string current_line;
+    bool parsingRaw;
 
     Token parseNumber(char start);
     Token parseString(char closing);
@@ -34,11 +35,13 @@ public:
     Token currentToken;
 
     Token getNextToken();
+    Token getNextRawToken();
 
     optional<char> peek();
     optional<char> peek(int n);
 
     optional<char> next();
+    void next(int n);
 
     void unnext();
 };

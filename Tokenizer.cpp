@@ -3,6 +3,7 @@
 //
 
 #include "Tokenizer.h"
+#include "Token.h"
 #include <cctype>
 #include <string>
 #include <unordered_set>
@@ -16,6 +17,8 @@ Tokenizer::Tokenizer(string p) : program(std::move(p)), currentToken(Token(Empty
                                  col_number(0) {}
 
 Token Tokenizer::getNextToken() {
+    if (parsingRaw)
+        return getNextRawToken();
     char c;
     optional<char> _;
     // Get next char of program
@@ -45,8 +48,6 @@ Token Tokenizer::getNextToken() {
         unordered_map<char, TokenType> singleChars = {
                 {'(', LeftParen},
                 {')', RightParen},
-                {'[', LeftBracket},
-                {']', RightBracket},
                 {'{', LeftBrace},
                 {'}', RightBrace},
                 {';', Semicolon},
@@ -70,6 +71,11 @@ Token Tokenizer::getNextToken() {
     }
     // Find 2-char tokens that could be confused
     string nextTwo = string() + c + _.value();
+    if (nextTwo == "[[") {
+        next(1);
+        currentToken = Token(RawOpener, "");
+        return currentToken;
+    }
     {
         unordered_map<string, TokenType> doubleChars = {
                 {"++", Increment},
@@ -88,7 +94,7 @@ Token Tokenizer::getNextToken() {
         };
         auto it = doubleChars.find(nextTwo);
         if (it != doubleChars.end()) {
-            next(); // Go one more forward
+            next(1); // Go one more forward
             currentToken = Token(it->second);
             return currentToken;
         }
@@ -108,6 +114,8 @@ Token Tokenizer::getNextToken() {
                 {'|', BinaryOr},
                 {'^', BinaryXor},
                 {'!', Not},
+                {'[', LeftBracket},
+                {']', RightBracket},
         };
         auto it = singleChars.find(c);
 
@@ -118,27 +126,32 @@ Token Tokenizer::getNextToken() {
     }
     // Integers
     if (isdigit(c)) {
-        return parseNumber(c);
+        currentToken = parseNumber(c);
+        return currentToken;
     }
     // Strings
     if (c == '"') {
-        return parseString('"');
+        currentToken = parseString('"');
+        return currentToken;
     }
     // URLs
     if (c == '`') {
-        return parseURL();
+        currentToken = parseURL();
+        return currentToken;
     }
     // Chars
     if (c == '\'') {
-        return parseChar();
+        currentToken = parseChar();
+        return currentToken;
     }
 
-    return parseName(c);
+    currentToken = parseName(c);
+    return currentToken;
 }
 
 // Return the next character without incrementing
 optional<char> Tokenizer::peek() {
-    return peek(1);
+    return peek(0);
 }
 
 // Return the Nth next character without incrementing
@@ -146,6 +159,12 @@ optional<char> Tokenizer::peek(int n) {
     if (pos + n >= program.size())
         return {};
     return program[pos + n];
+}
+
+// Return the current character and increment
+void Tokenizer::next(int n) {
+    for (int i = 0; i < n; i++)
+        next();
 }
 
 // Return the current character and increment
@@ -246,13 +265,9 @@ Token Tokenizer::parseString(char closing) {
 
 Token Tokenizer::parseName(char c) {
     optional<char> _;
-    const unordered_set<char> validNameChars =
-            {'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'z', 'x',
-             'c', 'v', 'b', 'n', 'm', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H',
-             'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '_'};
     string res;
     // while it's a valid name char
-    while (validNameChars.find(c) != validNameChars.end()) {
+    while ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
         res += c;
         _ = next();
         if (!_.has_value()) {
@@ -264,7 +279,7 @@ Token Tokenizer::parseName(char c) {
     unnext();
 
     if (res.length() == 0) {
-        throw TokenizerException(string("Unexpected character `") + c + "`", line_number, col_number, current_line);
+        throw TokenizerException(string("Unexpected character '") + c + "'", line_number, col_number, current_line);
     }
 
     if (res == "true")
@@ -272,6 +287,7 @@ Token Tokenizer::parseName(char c) {
     else if (res == "false")
         return Token(Boolean, false);
     else {
+        // Http Method parsing
         if (res.compare(0, 2, "M_") == 0) {
             currentToken = Token(Method, res.substr(2));
             return currentToken;
@@ -283,6 +299,21 @@ Token Tokenizer::parseName(char c) {
             currentToken = Token(Method, res);
             return currentToken;
         }
+    }
+
+    _ = peek();
+    if (!_.has_value()) {
+        return Token(Name, res);
+    }
+    optional<char> _1 = peek(1);
+    if (!_1.has_value()) {
+        return Token(Name, res);
+    }
+
+    if (_.value() == '[' && _1.value() == '[') {
+        next(2);
+        parsingRaw = true;
+        return Token(RawOpener, res);
     }
     return Token(Name, res);
 }
@@ -330,6 +361,14 @@ Token Tokenizer::parseURL() {
         // TODO: Possibly add a Url token?
         return Token(String, url);
     }
+}
+
+Token Tokenizer::getNextRawToken() {
+    return Token();
+}
+
+Token Tokenizer::parseRaw(string name) {
+    return Token(RawOpener, name);
 }
 
 char doBackslash(char c) {
